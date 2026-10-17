@@ -1,0 +1,27 @@
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing & Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases & environment
+clinic.db
+*.sqlite3
+.env
+.env.local
+
+# OS & IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
