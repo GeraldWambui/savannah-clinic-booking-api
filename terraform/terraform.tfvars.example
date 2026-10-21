@@ -1,0 +1,6 @@
+# Example terraform.tfvars
+project_id         = "your-gcp-project-id"
+region             = "europe-west1"
+service_name       = "clinic-booking-api"
+artifact_repo_name = "clinic-booking-repo"
+image_tag          = "latest"

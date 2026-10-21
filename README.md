@@ -8,7 +8,7 @@ Built for the **Savannah Informatics Backend Developer Assessment**.
 
 ## Submission Details
 
-- **Deployed Application Public URL:** [https://clinical-health-production.up.railway.app](https://clinical-health-production.up.railway.app) *(or your deployed Render/Railway URL)*
+- **Deployed Application Public URL:** `https://clinic-booking-api-xxxx-ew.a.run.app` *(update with your deployed Cloud Run URL)*
 - **API Documentation (Swagger UI):** `https://<deployed-url>/docs`
 - **Health Check Endpoint:** `https://<deployed-url>/health`
 - **Primary Branch:** `main`
@@ -223,10 +223,23 @@ pytest -v
 
 ## Section 3: Deployment & CI/CD Pipeline
 
-### 1. Cloud Infrastructure
-- **Cloud Provider:** Render / Railway (Docker Web Service + Managed PostgreSQL)
-- **Healthcheck Endpoint:** `/health`
-- **Public URL:** [https://clinical-health-production.up.railway.app](https://clinical-health-production.up.railway.app)
+### 1. Cloud Infrastructure & Terraform (IaC)
+The production infrastructure is declared as reproducible code using **Terraform** under the `terraform/` directory:
+- **Cloud Provider:** Google Cloud Platform (GCP)
+- **Container Runtime:** **Google Cloud Run v2** (serverless container platform with zero sleep-state latency)
+- **Artifact Registry:** Private Docker repository (`europe-west1-docker.pkg.dev/<project-id>/clinic-booking-repo`)
+- **Public URL:** `https://clinic-booking-api-xxxx-ew.a.run.app` *(or your deployed Cloud Run URL)*
+- **Healthcheck Probe:** `/health` (HTTP liveness & startup probes)
+
+#### Reproducing Infrastructure with Terraform
+```bash
+cd terraform
+cp terraform.tfvars.example terraform.tfvars
+# Update project_id with your GCP project ID
+terraform init
+terraform plan
+terraform apply
+```
 
 ### 2. CI/CD Workflow (`.github/workflows/ci-cd.yml`)
 
@@ -236,18 +249,21 @@ The repository uses GitHub Actions for continuous integration and automated depl
 flowchart LR
     Dev[Developer PR] --> |Triggers| TestJob[Test Job: Lint + Pytest Suite]
     TestJob --> |Passes| PRMerge[Merge into main Branch]
-    PRMerge --> |Triggers| DeployJob[Deploy Job: Webhook / Cloud Sync]
-    DeployJob --> |Executes| Cloud[Production: Alembic Migrate + Seed + Uvicorn]
+    PRMerge --> |Triggers| DeployJob[Deploy Job: Build & Push Docker Image]
+    DeployJob --> |Deploys to| CloudRun[Google Cloud Run Container Service]
+    CloudRun --> |Executes| Production[Alembic Migrate + Seed + Uvicorn]
 ```
 
 - **Trigger 1 (Pull Requests to `main`):**
   - Runs on every pull request targeting `main`.
   - Configures Python 3.12 with cached pip dependencies.
-  - Executes the full test suite (`pytest -v`). A single test failure blocks merging.
+  - Executes the full test suite (`pytest -v`). Any failure blocks merging.
 - **Trigger 2 (Push / Merge to `main`):**
   - Automatically runs upon a merge to `main`.
-  - Executes deployment webhook or native Git synchronization with the cloud provider.
-  - The container executes `alembic upgrade head`, runs `scripts/seed_data.py` (idempotent), and starts `uvicorn`.
+  - Authenticates to GCP using service account credentials (`GCP_SA_KEY`).
+  - Builds and pushes the Docker container to Google Artifact Registry.
+  - Deploys the container to Cloud Run with `--allow-unauthenticated` for public accessibility.
+
 
 ---
 

@@ -30,18 +30,57 @@ jobs:
         run: |
           pytest -v
 
-  deploy:
-    name: Deploy to Production Cloud (Render / Railway)
+  deploy-gcp:
+    name: Build & Deploy to Google Cloud Run
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:
-      - name: Trigger Cloud Deployment Hook
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        if: "${{ env.GCP_SA_KEY != '' }}"
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Set up Google Cloud SDK
+        if: "${{ env.GCP_SA_KEY != '' }}"
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        if: "${{ env.GCP_SA_KEY != '' }}"
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
         run: |
-          if [ -n "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
-            echo "Triggering Render auto-deploy webhook..."
-            curl -f -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
-          else
-            echo "RENDER_DEPLOY_HOOK_URL secret not configured. Cloud Git integration will automatically track merge to main branch."
-          fi
+          gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+
+      - name: Build and Push Docker Container Image
+        if: "${{ env.GCP_SA_KEY != '' }}"
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          IMAGE_TAG="europe-west1-docker.pkg.dev/${GCP_PROJECT_ID}/clinic-booking-repo/clinic-booking-api"
+          docker build -t "${IMAGE_TAG}:${{ github.sha }}" -t "${IMAGE_TAG}:latest" .
+          docker push "${IMAGE_TAG}:${{ github.sha }}"
+          docker push "${IMAGE_TAG}:latest"
+
+      - name: Deploy Container to Google Cloud Run
+        if: "${{ env.GCP_SA_KEY != '' }}"
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          gcloud run deploy clinic-booking-api \
+            --image="europe-west1-docker.pkg.dev/${GCP_PROJECT_ID}/clinic-booking-repo/clinic-booking-api:${{ github.sha }}" \
+            --region=europe-west1 \
+            --platform=managed \
+            --allow-unauthenticated \
+            --port=8000
