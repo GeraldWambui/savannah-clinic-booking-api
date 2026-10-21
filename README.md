@@ -221,6 +221,17 @@ pytest -v
 
 ---
 
+### Observability & Telemetry (SRE Golden Signals)
+
+The service is pre-instrumented with production-grade telemetry conforming to the **Google SRE 4 Golden Signals**:
+- **Prometheus Metrics Endpoint:** `GET /metrics` exports application telemetry in standard OpenMetrics exposition format:
+  - `clinic_http_requests_total`: Counter tracking throughput by HTTP method, route, and status code.
+  - `clinic_http_request_duration_seconds`: Histogram measuring latency distribution with standard SLO/SLI buckets.
+- **Distributed Request Tracing (`X-Request-ID`):** Every incoming request is stamped with a unique correlation UUID returned in the response header for auditability and incident root-cause analysis.
+- **Production Dashboard Integration:** In Kubernetes/ECS clusters, metrics are scraped directly by Prometheus or VictoriaMetrics and visualized in Grafana dashboards for latency and error-rate alerting.
+
+---
+
 ## Section 3: Deployment & CI/CD Pipeline
 
 ### 1. Cloud Infrastructure & Multi-Cloud IaC

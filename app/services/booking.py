@@ -130,7 +130,6 @@ def book_appointment(
     try:
         db.add(appointment)
         db.commit()
-        db.refresh(appointment)
         return appointment
     except IntegrityError:
         db.rollback()
@@ -155,7 +154,6 @@ def cancel_appointment(
     appointment.cancelled_at = utc_now()
 
     db.commit()
-    db.refresh(appointment)
     return appointment
 
 
@@ -200,7 +198,6 @@ def reschedule_appointment(
         appointment.start_time = norm_start_utc
         appointment.end_time = norm_end_utc
         db.commit()
-        db.refresh(appointment)
         return appointment
     except IntegrityError:
         db.rollback()

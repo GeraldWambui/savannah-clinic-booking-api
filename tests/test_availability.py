@@ -59,3 +59,16 @@ def test_doctor_not_found(client):
     response = client.get("/doctors/99999999-9999-9999-9999-999999999999/availability?date=2026-10-23")
     assert response.status_code == 404
     assert "not found" in response.json()["message"].lower()
+
+
+def test_metrics_and_request_id_tracing(client):
+    # Test that incoming request receives X-Request-ID
+    res = client.get("/health")
+    assert res.status_code == 200
+    assert "x-request-id" in res.headers
+
+    # Test that /metrics endpoint returns Prometheus exposition format
+    metrics_res = client.get("/metrics")
+    assert metrics_res.status_code == 200
+    assert "clinic_http_requests_total" in metrics_res.text
+

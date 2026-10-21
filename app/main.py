@@ -13,6 +13,11 @@ app = FastAPI(
     redoc_url="/redoc"
 )
 
+from app.core.telemetry import TelemetryAndTracingMiddleware, get_metrics_response
+
+# Observability & Tracing middleware
+app.add_middleware(TelemetryAndTracingMiddleware)
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -43,6 +48,13 @@ def health_check():
         "version": settings.VERSION,
         "environment": settings.ENVIRONMENT
     }
+
+
+@app.get("/metrics", tags=["Observability"], summary="Prometheus Telemetry Metrics")
+def metrics():
+    """Scrape endpoint for Prometheus, VictoriaMetrics, and Grafana."""
+    return get_metrics_response()
+
 
 
 # Include routers under both standard /api/v1 and root paths for endpoint convenience
