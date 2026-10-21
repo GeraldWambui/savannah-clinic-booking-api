@@ -8,9 +8,11 @@ Built for the **Savannah Informatics Backend Developer Assessment**.
 
 ## Submission Details
 
-- **Deployed Application Public URL:** [https://savannah-clinic-booking-api-54m5.onrender.com](https://savannah-clinic-booking-api-54m5.onrender.com)
-- **Interactive API Documentation (Swagger UI):** [https://savannah-clinic-booking-api-54m5.onrender.com/docs](https://savannah-clinic-booking-api-54m5.onrender.com/docs)
-- **Health Check Endpoint:** [https://savannah-clinic-booking-api-54m5.onrender.com/health](https://savannah-clinic-booking-api-54m5.onrender.com/health)
+- **Primary Production URL (AWS App Runner):** [https://hf5vyszv5v.us-east-1.awsapprunner.com](https://hf5vyszv5v.us-east-1.awsapprunner.com)
+- **Interactive API Documentation (Swagger UI):** [https://hf5vyszv5v.us-east-1.awsapprunner.com/docs](https://hf5vyszv5v.us-east-1.awsapprunner.com/docs)
+- **Health Check Endpoint:** [https://hf5vyszv5v.us-east-1.awsapprunner.com/health](https://hf5vyszv5v.us-east-1.awsapprunner.com/health)
+- **Prometheus Telemetry Metrics:** [https://hf5vyszv5v.us-east-1.awsapprunner.com/metrics](https://hf5vyszv5v.us-east-1.awsapprunner.com/metrics)
+- **High-Availability Secondary Mirror:** [https://savannah-clinic-booking-api-54m5.onrender.com](https://savannah-clinic-booking-api-54m5.onrender.com)
 - **Primary Branch:** `main`
 
 ---
@@ -234,16 +236,19 @@ The service is pre-instrumented with production-grade telemetry conforming to th
 
 ## Section 3: Deployment & CI/CD Pipeline
 
-### 1. Cloud Infrastructure & Multi-Cloud IaC
-The application is deployed live in production using Infrastructure as Code:
-- **Live Cloud Provider:** Render (via [`render.yaml`](render.yaml) Blueprint Infrastructure as Code)
-- **Live Public URL:** [https://savannah-clinic-booking-api-54m5.onrender.com](https://savannah-clinic-booking-api-54m5.onrender.com)
-- **Interactive OpenAPI Documentation:** [https://savannah-clinic-booking-api-54m5.onrender.com/docs](https://savannah-clinic-booking-api-54m5.onrender.com/docs)
-- **Healthcheck Probe:** [https://savannah-clinic-booking-api-54m5.onrender.com/health](https://savannah-clinic-booking-api-54m5.onrender.com/health)
+### 1. Cloud Infrastructure & Multi-Cloud Architecture
+The application is deployed live in production across high-availability enterprise cloud platforms:
+- **Primary Cloud Provider (AWS):** **AWS App Runner** (fully managed serverless container service with automated SSL and horizontal scaling)
+  - **Live URL:** [https://hf5vyszv5v.us-east-1.awsapprunner.com](https://hf5vyszv5v.us-east-1.awsapprunner.com)
+  - **Interactive OpenAPI Documentation:** [https://hf5vyszv5v.us-east-1.awsapprunner.com/docs](https://hf5vyszv5v.us-east-1.awsapprunner.com/docs)
+  - **Prometheus Telemetry Metrics:** [https://hf5vyszv5v.us-east-1.awsapprunner.com/metrics](https://hf5vyszv5v.us-east-1.awsapprunner.com/metrics)
+  - **Healthcheck Probe:** [https://hf5vyszv5v.us-east-1.awsapprunner.com/health](https://hf5vyszv5v.us-east-1.awsapprunner.com/health)
+  - **Container Registry:** Amazon Elastic Container Registry (Amazon ECR) (`730335634941.dkr.ecr.us-east-1.amazonaws.com/savannah-clinic-api`)
+- **Secondary Cloud Mirror (Render):** [https://savannah-clinic-booking-api-54m5.onrender.com](https://savannah-clinic-booking-api-54m5.onrender.com) (via [`render.yaml`](render.yaml) Blueprint)
 - **Designated Branch:** `main` (auto-deploys on every merge)
 
-#### Enterprise Cloud Run Portability (Terraform IaC)
-For enterprise scalability, a complete **Terraform** module is provided under the `terraform/` directory declaring:
+#### Multi-Cloud Portability (Terraform IaC)
+For cloud-agnostic enterprise deployments, a complete **Terraform** module is provided in [`terraform/`](terraform/) declaring:
 - **Google Cloud Run v2** serverless container deployment.
 - Private **Artifact Registry** repository (`clinic-booking-repo`).
 - Public IAM `roles/run.invoker` bindings and CI/CD deployer service accounts.
@@ -258,26 +263,29 @@ terraform apply
 
 ### 2. CI/CD Workflow (`.github/workflows/ci-cd.yml`)
 
-The repository uses GitHub Actions for continuous integration and automated deployment:
+The repository uses GitHub Actions for continuous integration, automated testing, container builds, and deployment to AWS:
 
 ```mermaid
 flowchart LR
-    Dev[Developer PR] --> |Triggers| TestJob[Test Job: Lint + Pytest Suite]
+    Dev[Developer PR / Merge] --> |Triggers| TestJob[Test Job: Lint + 14 Pytest Suite]
     TestJob --> |Passes| PRMerge[Merge into main Branch]
-    PRMerge --> |Triggers| DeployJob[Deploy Job: Build & Push Docker Image]
-    DeployJob --> |Deploys to| CloudRun[Google Cloud Run Container Service]
-    CloudRun --> |Executes| Production[Alembic Migrate + Seed + Uvicorn]
+    PRMerge --> |Triggers| DeployJob[Deploy Job: Build Docker Image]
+    DeployJob --> |Pushes to| ECR[Amazon Elastic Container Registry]
+    ECR --> |Auto-deploys to| AppRunner[AWS App Runner Container Service]
+    AppRunner --> |Serves Traffic| Production[Live Clinic Booking API]
 ```
 
 - **Trigger 1 (Pull Requests to `main`):**
   - Runs on every pull request targeting `main`.
   - Configures Python 3.12 with cached pip dependencies.
-  - Executes the full test suite (`pytest -v`). Any failure blocks merging.
+  - Executes the full test suite (`pytest -v`). Any single test failure blocks merging.
 - **Trigger 2 (Push / Merge to `main`):**
   - Automatically runs upon a merge to `main`.
-  - Authenticates to GCP using service account credentials (`GCP_SA_KEY`).
-  - Builds and pushes the Docker container to Google Artifact Registry.
-  - Deploys the container to Cloud Run with `--allow-unauthenticated` for public accessibility.
+  - Authenticates to AWS via GitHub Secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`).
+  - Logs in to Amazon ECR.
+  - Builds and pushes the Docker container to Amazon ECR tagged with both `latest` and `${{ github.sha }}`.
+  - Creates or updates the **AWS App Runner** service, executing database migrations, seeding, and serving public traffic.
+
 
 
 ---
