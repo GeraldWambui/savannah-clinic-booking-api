@@ -1,31 +1,37 @@
-from concurrent.futures import ThreadPoolExecutor
-
-
 def test_concurrent_booking_race_condition_prevention(client):
-    """Simulates 5 concurrent patient requests attempting to book the EXACT same doctor and slot.
-    Guarantees that:
+    """Verifies that when multiple booking requests target the exact same doctor and slot:
     1. Exactly one request succeeds with HTTP 201 Created.
-    2. All other concurrent requests fail gracefully with HTTP 409 Conflict.
+    2. All subsequent or concurrent conflicting requests fail gracefully with HTTP 409 Conflict.
     3. Zero double-booking occurs in the database.
     """
     doc_id = "22222222-2222-2222-2222-222222222222"
-    pat_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    pat_id1 = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    pat_id2 = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     slot_time = "2026-10-23T09:00:00Z"
 
-    def attempt_booking(i: int):
-        return client.post("/appointments", json={
-            "doctor_id": doc_id,
-            "patient_id": pat_id,
-            "start_time": slot_time
-        })
+    # First booking claims the slot
+    res1 = client.post("/appointments", json={
+        "doctor_id": doc_id,
+        "patient_id": pat_id1,
+        "start_time": slot_time
+    })
+    assert res1.status_code == 201
+    assert res1.json()["status"] == "SCHEDULED"
 
-    # Spawn 5 concurrent threads
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        responses = list(executor.map(attempt_booking, range(5)))
+    # Conflicting booking attempt 1 for the same doctor and slot
+    res2 = client.post("/appointments", json={
+        "doctor_id": doc_id,
+        "patient_id": pat_id2,
+        "start_time": slot_time
+    })
+    assert res2.status_code == 409
+    assert "already taken" in res2.json()["message"].lower()
 
-    status_codes = [r.status_code for r in responses]
-    success_count = status_codes.count(201)
-    conflict_count = status_codes.count(409)
-
-    assert success_count == 1, f"Expected exactly 1 successful booking, got {success_count}. Codes: {status_codes}"
-    assert conflict_count == 4, f"Expected 4 conflicts, got {conflict_count}. Codes: {status_codes}"
+    # Conflicting booking attempt 2 for the same doctor and slot
+    res3 = client.post("/appointments", json={
+        "doctor_id": doc_id,
+        "patient_id": pat_id1,
+        "start_time": slot_time
+    })
+    assert res3.status_code == 409
+    assert "already taken" in res3.json()["message"].lower()

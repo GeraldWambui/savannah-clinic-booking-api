@@ -42,12 +42,12 @@ class TelemetryAndTracingMiddleware(BaseHTTPMiddleware):
             return response
 
         start_time = time.perf_counter()
+        status_code = 500
 
         try:
             response = await call_next(request)
             status_code = response.status_code
         except Exception:
-            status_code = 500
             raise
         finally:
             duration = time.perf_counter() - start_time
