@@ -1,14 +1,14 @@
-output "cloud_run_service_url" {
-  description = "The public HTTPS URL of the deployed Cloud Run service"
-  value       = google_cloud_run_v2_service.clinic_api.uri
+output "apprunner_service_url" {
+  description = "The public HTTPS URL of the deployed AWS App Runner service"
+  value       = "https://${aws_apprunner_service.clinic_service.service_url}"
 }
 
-output "artifact_registry_repository" {
-  description = "Artifact Registry Docker repository endpoint"
-  value       = "${var.region}-docker.pkg.dev/${var.project_id}/${google_artifact_registry_repository.clinic_repo.name}"
+output "ecr_repository_url" {
+  description = "Amazon ECR Docker repository URL"
+  value       = aws_ecr_repository.clinic_ecr.repository_url
 }
 
-output "deployer_service_account_email" {
-  description = "Service account email to configure in GitHub Secrets"
-  value       = google_service_account.github_deployer.email
+output "apprunner_role_arn" {
+  description = "IAM Role ARN created for App Runner ECR access"
+  value       = aws_iam_role.apprunner_ecr_role.arn
 }

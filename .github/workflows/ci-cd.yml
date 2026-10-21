@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [ main, production, dev ]
   push:
-    branches: [ main ]
+    branches: [ main, production, dev ]
 
 jobs:
   test:
@@ -26,14 +26,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Pytest with Concurrency Validation
+      - name: Run Pytest Suite with Concurrency & Telemetry Validation
         run: |
           pytest -v
 
   deploy-aws:
     name: Build & Deploy to AWS ECR and App Runner
     needs: test
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/production' || github.ref == 'refs/heads/dev') && github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:

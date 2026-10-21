@@ -1,6 +1,8 @@
-# Example terraform.tfvars
-project_id         = "your-gcp-project-id"
-region             = "europe-west1"
-service_name       = "clinic-booking-api"
-artifact_repo_name = "clinic-booking-repo"
-image_tag          = "latest"
+# AWS Terraform Configuration Example
+aws_region   = "us-east-1"
+service_name = "savannah-clinic-api"
+ecr_repo_name = "savannah-clinic-api"
+image_tag    = "latest"
+cpu          = "1 vCPU"
+memory       = "2 GB"
+port         = 8000
