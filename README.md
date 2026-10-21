@@ -8,9 +8,9 @@ Built for the **Savannah Informatics Backend Developer Assessment**.
 
 ## Submission Details
 
-- **Deployed Application Public URL:** `https://clinic-booking-api-xxxx-ew.a.run.app` *(update with your deployed Cloud Run URL)*
-- **API Documentation (Swagger UI):** `https://<deployed-url>/docs`
-- **Health Check Endpoint:** `https://<deployed-url>/health`
+- **Deployed Application Public URL:** [https://savannah-clinic-booking-api-54m5.onrender.com](https://savannah-clinic-booking-api-54m5.onrender.com)
+- **Interactive API Documentation (Swagger UI):** [https://savannah-clinic-booking-api-54m5.onrender.com/docs](https://savannah-clinic-booking-api-54m5.onrender.com/docs)
+- **Health Check Endpoint:** [https://savannah-clinic-booking-api-54m5.onrender.com/health](https://savannah-clinic-booking-api-54m5.onrender.com/health)
 - **Primary Branch:** `main`
 
 ---
@@ -223,21 +223,25 @@ pytest -v
 
 ## Section 3: Deployment & CI/CD Pipeline
 
-### 1. Cloud Infrastructure & Terraform (IaC)
-The production infrastructure is declared as reproducible code using **Terraform** under the `terraform/` directory:
-- **Cloud Provider:** Google Cloud Platform (GCP)
-- **Container Runtime:** **Google Cloud Run v2** (serverless container platform with zero sleep-state latency)
-- **Artifact Registry:** Private Docker repository (`europe-west1-docker.pkg.dev/<project-id>/clinic-booking-repo`)
-- **Public URL:** `https://clinic-booking-api-xxxx-ew.a.run.app` *(or your deployed Cloud Run URL)*
-- **Healthcheck Probe:** `/health` (HTTP liveness & startup probes)
+### 1. Cloud Infrastructure & Multi-Cloud IaC
+The application is deployed live in production using Infrastructure as Code:
+- **Live Cloud Provider:** Render (via [`render.yaml`](render.yaml) Blueprint Infrastructure as Code)
+- **Live Public URL:** [https://savannah-clinic-booking-api-54m5.onrender.com](https://savannah-clinic-booking-api-54m5.onrender.com)
+- **Interactive OpenAPI Documentation:** [https://savannah-clinic-booking-api-54m5.onrender.com/docs](https://savannah-clinic-booking-api-54m5.onrender.com/docs)
+- **Healthcheck Probe:** [https://savannah-clinic-booking-api-54m5.onrender.com/health](https://savannah-clinic-booking-api-54m5.onrender.com/health)
+- **Designated Branch:** `main` (auto-deploys on every merge)
 
-#### Reproducing Infrastructure with Terraform
+#### Enterprise Cloud Run Portability (Terraform IaC)
+For enterprise scalability, a complete **Terraform** module is provided under the `terraform/` directory declaring:
+- **Google Cloud Run v2** serverless container deployment.
+- Private **Artifact Registry** repository (`clinic-booking-repo`).
+- Public IAM `roles/run.invoker` bindings and CI/CD deployer service accounts.
+
+To provision on GCP via Terraform:
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
-# Update project_id with your GCP project ID
 terraform init
-terraform plan
 terraform apply
 ```
 
