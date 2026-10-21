@@ -169,7 +169,7 @@ Run the full pytest suite:
 pytest -v
 ```
 
-14 tests pass, covering:
+15 tests pass, covering:
 - In-memory 30-min slot generation and non-working days.
 - Excluding booked slots from availability and restoring slots on cancellation.
 - Working hour validations, 30-min boundary checks, and past-time cutoffs.
@@ -197,7 +197,7 @@ terraform apply
 ### 2. CI/CD Pipeline (`.github/workflows/ci-cd.yml`)
 
 The repository uses GitHub Actions:
-- **Pull Requests (Test Gate):** Any PR to `main`, `dev`, or `production` triggers the 14-test Pytest suite. If any test fails, merging is blocked.
+- **Pull Requests (Test Gate):** Any PR to `main`, `dev`, or `production` triggers the 15-test Pytest suite. If any test fails, merging is blocked.
 - **Deploy on Merge:** Pushing or merging to `main` or `dev` builds the Docker image, pushes it to Amazon ECR, and triggers auto-deployment on AWS App Runner.
 
 ---

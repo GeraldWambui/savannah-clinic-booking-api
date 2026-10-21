@@ -121,7 +121,7 @@ def create_architecture_diagram(output_path="docs/architecture_diagram.png"):
     
     # GitHub Actions Card
     draw_component_card(4.8, 2.25, 3.5, 4.1, "GitHub Actions CI/CD", 
-                        ["Automated Workflow:", "• Branching: main, dev, PRs", "• Run 14 Pytest Test Suite", "• Concurrency collision tests", "• Build & Push Docker image", "• Continuous Deployment"], 
+                        ["Automated Workflow:", "• Branching: main, dev, PRs", "• Run 15 Pytest Test Suite", "• Concurrency collision tests", "• Build & Push Docker image", "• Continuous Deployment"], 
                         "CI/CD AUTOMATION", "github",
                         bg_color='#FFFFFF', border_color='#C084FC', badge_color='#24292E', logo_zoom=0.18)
 
