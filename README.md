@@ -1,21 +1,12 @@
-# Savannah Clinic Booking System API
+# Savannah Clinic Booking API
 
-[![CI/CD Pipeline](https://github.com/GeraldWambui/savannah-clinic-booking-api/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/GeraldWambui/savannah-clinic-booking-api/actions/workflows/ci-cd.yml)
-[![Live on AWS App Runner](https://img.shields.io/badge/AWS%20App%20Runner-Live-orange?logo=amazon-aws)](https://hf5vyszv5v.us-east-1.awsapprunner.com)
-[![Python 3.12](https://img.shields.io/badge/Python-3.12-blue?logo=python)](https://www.python.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![Terraform AWS](https://img.shields.io/badge/Terraform-AWS%20IaC-7B42BC?logo=terraform)](https://www.terraform.io/)
-[![Tests](https://img.shields.io/badge/Tests-14%2F14%20Passing-success)](tests/)
+A REST API for outpatient clinic appointment scheduling, dynamic doctor availability, and concurrency-safe bookings.
 
-A robust REST API for outpatient appointment scheduling, dynamic doctor availability, and concurrency-safe bookings. Built for the **Savannah Informatics Backend Developer Take-Home Assessment**.
+Built for the **Savannah Informatics Backend Developer Take-Home Assessment**.
 
----
-
-## Submission Links
-
-- **Live Deployed API:** [https://hf5vyszv5v.us-east-1.awsapprunner.com](https://hf5vyszv5v.us-east-1.awsapprunner.com)
+- **Live URL:** [https://hf5vyszv5v.us-east-1.awsapprunner.com](https://hf5vyszv5v.us-east-1.awsapprunner.com)
 - **Interactive Swagger Docs:** [https://hf5vyszv5v.us-east-1.awsapprunner.com/docs](https://hf5vyszv5v.us-east-1.awsapprunner.com/docs)
-- **Health Check Endpoint:** [https://hf5vyszv5v.us-east-1.awsapprunner.com/health](https://hf5vyszv5v.us-east-1.awsapprunner.com/health)
+- **Health Check:** [https://hf5vyszv5v.us-east-1.awsapprunner.com/health](https://hf5vyszv5v.us-east-1.awsapprunner.com/health)
 - **GitHub Repository:** [https://github.com/GeraldWambui/savannah-clinic-booking-api](https://github.com/GeraldWambui/savannah-clinic-booking-api)
 
 ---
@@ -31,22 +22,19 @@ A robust REST API for outpatient appointment scheduling, dynamic doctor availabi
 
 ## Section 1: System Design
 
-### 1. Scenario
-A primary care clinic operates with 5 doctors. Patients schedule 30-minute consultation appointments online based on each doctor's recurring weekly shift hours. Booked slots must be immediately unavailable to others without risk of double-booking. Patients can cancel or reschedule appointments.
+### Scenario & Requirements
+The clinic runs with 5 doctors. Patients book 30-minute consultation slots online based on each doctor's weekly working hours. A patient queries free slots for a doctor on a specific date, picks one, and books it. Once booked, that slot cannot be double-booked. Patients can also cancel or reschedule.
 
-### 2. Architecture & Data Flow
+### Architecture Overview
 
 ![Architecture Diagram](docs/architecture_diagram.png)
 
-1. **Clients:** Web/mobile clients communicate via HTTPS REST calls (`/docs` provides interactive OpenAPI testing).
-2. **FastAPI Application Gateway:** Validates requests with Pydantic v2 schemas and attaches an `X-Request-ID` correlation header.
-3. **Dynamic Availability Engine:** Calculates open 30-minute slots on the fly against doctor shift hours, excluding past times, active bookings, and enforcing the 1-hour booking cutoff.
-4. **Atomic Booking Coordinator:** Manages transactional state transitions for booking, cancellation, and rescheduling.
-5. **Relational Persistence (PostgreSQL / SQLite):** Enforces data integrity and concurrency safety via a partial unique index.
+The application separates concerns into:
+- **API Routers & Schemas (`app/api`, `app/schemas`):** Request validation with Pydantic v2 and HTTP status codes.
+- **Service Layer (`app/services`):** Pure domain logic for slot calculation, bookings, cancellations, and rescheduling.
+- **Data Layer (`app/models`, `app/db`):** SQLAlchemy models, Alembic migrations, and database constraints.
 
----
-
-### 3. Data Models
+### Data Models
 
 ```mermaid
 erDiagram
@@ -55,7 +43,7 @@ erDiagram
     PATIENT ||--o{ APPOINTMENT : "books"
 
     DOCTOR {
-        string id PK "UUID"
+        string id PK
         string name
         string email UK
         string specialization
@@ -64,16 +52,16 @@ erDiagram
     }
 
     DOCTOR_WORKING_HOURS {
-        string id PK "UUID"
+        string id PK
         string doctor_id FK
-        int day_of_week "0=Mon ... 6=Sun"
-        time start_time "e.g. 09:00"
-        time end_time "e.g. 17:00"
+        int day_of_week "0=Mon .. 6=Sun"
+        time start_time
+        time end_time
         boolean is_active
     }
 
     PATIENT {
-        string id PK "UUID"
+        string id PK
         string name
         string email UK
         string phone
@@ -81,161 +69,124 @@ erDiagram
     }
 
     APPOINTMENT {
-        string id PK "UUID"
+        string id PK
         string doctor_id FK
         string patient_id FK
-        timestamp start_time "UTC, 30-min boundary (:00, :30)"
-        timestamp end_time "UTC, 30-min boundary (:00, :30)"
+        timestamp start_time
+        timestamp end_time
         string status "SCHEDULED, CANCELLED"
-        string cancellation_reason "Mandatory if cancelled"
-        timestamp cancelled_at "UTC Timestamp"
+        string cancellation_reason
+        timestamp cancelled_at
         timestamp created_at
         timestamp updated_at
     }
 ```
 
----
+### Key Decisions & Trade-offs
 
-### 4. Key Decisions & Trade-offs
+1. **Dynamic Slot Slicing vs. Pre-Generating Rows:**
+   - *Decision:* Rather than saving thousands of empty 30-minute rows in the database for future months, slots are computed in memory when `/doctors/{id}/availability?date=YYYY-MM-DD` is called:
+     `Available = (Doctor's Working Hours sliced into 30m) - (Booked Appointments) - (Past Slots / 1h buffer)`
+   - *Why:* If a doctor changes their schedule, calls in sick, or goes on leave, a pre-generated slot table requires deleting or updating thousands of database rows. In-memory slicing runs in under 1ms, uses almost no memory, and completely avoids stale calendar data.
 
-#### A. Dynamic Slot Generation vs. Static Slot Pre-generation
-- **Decision:** Generate 30-minute slots in-memory on demand when querying availability: `Available Slots = (Working Hours Slices) - (Active Appointments) - (Past Slots / 1h cutoff)`.
-- **Why:** Pre-generating future slots in database rows creates maintenance bloat. If a doctor modifies shift hours, takes leave, or falls ill, thousands of future rows require costly database updates. In-memory generation takes sub-millisecond CPU time (< 1ms for 16 candidate slots) and guarantees zero data drift.
+2. **Preventing Double-Bookings Under Concurrency:**
+   - *Decision:* I enforced slot uniqueness at the database level with a partial unique index:
+     ```sql
+     CREATE UNIQUE INDEX uq_doctor_active_slot 
+     ON appointments (doctor_id, start_time) 
+     WHERE status != 'CANCELLED';
+     ```
+   - *Why:* Application-level checks like `if not slot_is_taken:` fail when two requests hit the server at the exact same millisecond because both pass the check before either commits (TOCTOU race condition). The database index rejects the second insert with an integrity error, which the API catches to return `409 Conflict`.
+   - Verified by `tests/test_concurrency.py` with 5 threads firing simultaneously: exactly 1 succeeds and 4 receive `409 Conflict`.
 
-#### B. Concurrency Control & Double-Booking Prevention
-- **Decision:** Enforce slot uniqueness at the database engine level using a **partial unique index**:
-  ```sql
-  CREATE UNIQUE INDEX uq_doctor_active_slot 
-  ON appointments (doctor_id, start_time) 
-  WHERE status != 'CANCELLED';
-  ```
-- **Why:** Application-level checks (`if slot_taken`) fail under high concurrency due to **Time-of-Check to Time-of-Use (TOCTOU)** race conditions. The database partial unique index rejects simultaneous duplicate inserts with an integrity violation. The API catches this violation and returns `409 Conflict`.
-- **Verification:** Verified by `tests/test_concurrency.py` using 5 concurrent threads hitting the exact same slot simultaneously: 1 succeeds (`201`), 4 fail safely (`409`).
+3. **Atomic Rescheduling:**
+   - *Decision:* Rescheduling updates `start_time` and `end_time` in place inside a single transaction after validating the target slot.
+   - *Why:* The common approach of "cancel old booking, then book new one" is dangerous. If the second booking fails (e.g. taken by someone else), the patient loses their original appointment. Updating in place within a single transaction ensures that if the new slot fails, the transaction rolls back and the original appointment stays intact.
 
-#### C. Atomic Rescheduling with Rollback Safety
-- **Decision:** Execute rescheduling inside a single database transaction. The existing appointment's `start_time` and `end_time` are updated in place only after validating the target slot.
-- **Why:** Two-step rescheduling (cancelling old appointment then booking new) risks leaving a patient stranded with no appointment if the new slot fails. In-place transactional update ensures that if the target slot fails validation or is contested, the transaction rolls back cleanly, keeping the original appointment intact.
-
-#### D. Soft Cancellation with Auditability
-- **Decision:** Appointments are never hard-deleted. They transition from `SCHEDULED` to `CANCELLED` with a required `cancellation_reason` and `cancelled_at` timestamp.
-- **Why:** Medical scheduling requires audit history. Because the partial unique index filters on `WHERE status != 'CANCELLED'`, cancelling immediately restores the slot for new patient bookings.
+4. **Soft Deletes on Cancellation:**
+   - *Decision:* Appointments are marked `status = 'CANCELLED'` with a required reason.
+   - *Why:* Healthcare records need an audit trail. Because the unique index only applies `WHERE status != 'CANCELLED'`, cancelling an appointment immediately frees the slot for other patients without deleting historical records.
 
 ---
 
 ## Section 2: API Implementation & Local Setup
 
-### 1. API Endpoints
+### Endpoints
 
-All endpoints are available at the root and under `/api/v1`.
+All endpoints are available at root and under `/api/v1`.
 
-| Method | Endpoint | Description | Success | Error Codes |
-| :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/appointments` | Book a 30-minute slot | `201 Created` | `400`, `404`, `409 Conflict` |
-| `GET` | `/doctors/{id}/availability` | List open 30-min slots for doctor on date | `200 OK` | `400`, `404 Not Found` |
-| `PATCH` | `/appointments/{id}/cancel` | Cancel appointment with reason | `200 OK` | `400`, `404`, `422 Unprocessable` |
-| `PATCH` | `/appointments/{id}/reschedule` | Move appointment to a new slot atomically | `200 OK` | `400`, `404`, `409 Conflict` |
-| `GET` | `/patients/{id}/appointments` | **(Bonus)** List patient's upcoming appointments | `200 OK` | `404 Not Found` |
-| `GET` | `/health` | Liveness & health probe | `200 OK` | `500 Server Error` |
+| Method | Endpoint | Description | Status Codes |
+| :--- | :--- | :--- | :--- |
+| `POST` | `/appointments` | Book a 30-min slot | `201 Created`, `400`, `404`, `409 Conflict` |
+| `GET` | `/doctors/{id}/availability` | List free slots for doctor on date | `200 OK`, `400`, `404` |
+| `PATCH` | `/appointments/{id}/cancel` | Cancel booking with reason | `200 OK`, `400`, `404` |
+| `PATCH` | `/appointments/{id}/reschedule` | Move booking to a new slot | `200 OK`, `400`, `404`, `409` |
+| `GET` | `/patients/{id}/appointments` | **(Bonus)** Patient's upcoming appointments | `200 OK`, `404` |
+| `GET` | `/health` | Health check probe | `200 OK` |
 
-#### Booking Constraints & Validations:
-- Slots must fall strictly within the doctor's active shift hours.
-- Slots must align to 30-minute boundaries (`:00` or `:30`).
-- Appointments cannot be booked in the past.
-- **Bonus:** Appointments cannot be booked within 1 hour of current time.
-- Cancellation requires a non-empty `reason` string and rejects already-cancelled appointments.
+#### Business Rules Handled:
+- Slots must fall within the doctor's weekly working hours.
+- Slots must align to `:00` or `:30` minute marks.
+- Past dates/times are rejected.
+- **Bonus:** Rejects bookings within 1 hour of the current time.
+- Cancellations require a non-empty `reason` string and reject already-cancelled appointments.
 
 ---
 
-### 2. Local Setup & Running
+### Local Setup
 
-#### Option A: Python Virtual Environment
+#### Option 1: Python Virtualenv
 ```bash
-# 1. Clone repo
+# 1. Clone & enter repository
 git clone https://github.com/GeraldWambui/savannah-clinic-booking-api.git
 cd savannah-clinic-booking-api
 
-# 2. Virtual environment setup
+# 2. Setup virtual environment & dependencies
 python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# 3. Migrations & Seeding (5 doctors + working hours + test patients)
+# 3. Run database migrations & seed 5 doctors
 alembic upgrade head
 python scripts/seed_data.py
 
-# 4. Start local development server
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+# 4. Start server
+uvicorn app.main:app --reload
 ```
-Interactive docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+Interactive docs will be at: [http://localhost:8000/docs](http://localhost:8000/docs)
 
-#### Option B: Docker Compose
+#### Option 2: Docker Compose
 ```bash
 docker-compose up --build
 ```
-Boots PostgreSQL 16, runs Alembic migrations, seeds doctors, and serves API at port `8000`.
 
 ---
 
-### 3. Automated Test Suite
+### Running Tests
 
-Run the 14-test Pytest suite:
+Run the full pytest suite:
 ```bash
 pytest -v
 ```
 
-```
-tests/test_availability.py::test_get_doctor_availability_weekday PASSED
-tests/test_availability.py::test_get_doctor_availability_weekend_empty PASSED
-tests/test_availability.py::test_availability_excludes_booked_slot_and_restores_on_cancel PASSED
-tests/test_availability.py::test_doctor_not_found PASSED
-tests/test_availability.py::test_health_and_request_id_tracing PASSED
-tests/test_booking.py::test_book_appointment_success PASSED
-tests/test_booking.py::test_book_appointment_outside_working_hours PASSED
-tests/test_booking.py::test_book_appointment_invalid_boundary PASSED
-tests/test_booking.py::test_book_appointment_in_the_past PASSED
-tests/test_booking.py::test_book_appointment_duplicate_returns_409 PASSED
-tests/test_booking.py::test_cancel_appointment_lifecycle PASSED
-tests/test_booking.py::test_reschedule_appointment_lifecycle PASSED
-tests/test_booking.py::test_patient_upcoming_appointments_bonus PASSED
-tests/test_concurrency.py::test_concurrent_booking_race_condition_prevention PASSED
-```
+14 tests pass, covering:
+- In-memory 30-min slot generation and non-working days.
+- Excluding booked slots from availability and restoring slots on cancellation.
+- Working hour validations, 30-min boundary checks, and past-time cutoffs.
+- Atomic rescheduling and soft-cancellation lifecycle.
+- Multithreaded concurrency test (`test_concurrency.py`) simulating 5 simultaneous booking attempts on the same slot.
 
 ---
 
 ## Section 3: Deployment & CI/CD
 
-### 1. Live Deployment Details
-- **Public URL:** [https://hf5vyszv5v.us-east-1.awsapprunner.com](https://hf5vyszv5v.us-east-1.awsapprunner.com)
-- **Cloud Provider:** **AWS App Runner** (fully managed serverless container runtime) + **Amazon ECR** (Elastic Container Registry).
-- **Free-Tier Compliant:** 1 vCPU, 2 GB RAM, automatic HTTPS certificate provisioning, and container health checking via `/health`.
+### 1. Cloud Deployment
+- **Live URL:** [https://hf5vyszv5v.us-east-1.awsapprunner.com](https://hf5vyszv5v.us-east-1.awsapprunner.com)
+- **Provider:** **AWS App Runner** running our container image from **Amazon ECR**.
+- **Instance:** 1 vCPU, 2 GB RAM (Free Tier), with automatic HTTPS and `/health` monitoring.
+- **Infrastructure as Code:** The AWS infrastructure is written in Terraform under `terraform/` (`aws_ecr_repository`, `aws_iam_role`, `aws_apprunner_service`).
 
-### 2. CI/CD Pipeline (`.github/workflows/ci-cd.yml`)
-
-The repository uses **GitHub Actions** to automate quality checks and deployments:
-
-```mermaid
-flowchart LR
-    PR[Pull Request to main/dev/production] --> TestJob[Run 14 Pytest Test Suite]
-    TestJob -->|Passes| Merge[Merge Approved]
-    Merge --> DeployJob[Build & Push Docker Image to ECR]
-    DeployJob --> AppRunner[Auto-deploy to AWS App Runner]
-```
-
-- **Trigger 1 — Pull Requests (Testing Quality Gate):**
-  - Runs on every pull request targeting `main`, `dev`, or `production`.
-  - Executes the full 14-test Pytest suite (including concurrency race condition tests). Merging is blocked if any test fails.
-- **Trigger 2 — Push / Merge (Continuous Deployment):**
-  - Triggers on push or merge into `main` or `dev`.
-  - Authenticates to AWS using GitHub Secrets, builds the Docker container, pushes to Amazon ECR, and triggers zero-downtime deployment on AWS App Runner.
-
-### 3. Terraform (IaC) AWS Module
-
-All AWS infrastructure is codified in [`terraform/`](terraform/):
-- `aws_ecr_repository.clinic_ecr`: Container registry with scan-on-push.
-- `aws_iam_role.apprunner_ecr_role`: Least-privilege IAM access role for App Runner.
-- `aws_apprunner_service.clinic_service`: Managed container service with health checks.
-
-To provision:
+To apply the Terraform configuration:
 ```bash
 cd terraform
 cp terraform.tfvars.example terraform.tfvars
@@ -243,38 +194,38 @@ terraform init
 terraform apply
 ```
 
+### 2. CI/CD Pipeline (`.github/workflows/ci-cd.yml`)
+
+The repository uses GitHub Actions:
+- **Pull Requests (Test Gate):** Any PR to `main`, `dev`, or `production` triggers the 14-test Pytest suite. If any test fails, merging is blocked.
+- **Deploy on Merge:** Pushing or merging to `main` or `dev` builds the Docker image, pushes it to Amazon ECR, and triggers auto-deployment on AWS App Runner.
+
 ---
 
 ## Section 4: AI Reflection
 
 ### 1. What did you use AI for across the four sections?
-- **Section 1 (System Design):** Comparing edge-case trade-offs between database range exclusion constraints (GiST) vs. partial unique index constraints.
-- **Section 2 (Implementation):** Generating initial Pydantic schema boilerplate and database seed fixtures for the 5 doctors.
-- **Section 3 (Deployment & CI/CD):** Scaffolding AWS App Runner Terraform resource blocks and GitHub Actions workflow syntax.
-- **Section 4 (Testing):** Drafting multithreaded concurrency test templates (`concurrent.futures.ThreadPoolExecutor`).
+I used AI as a typing accelerator for routine boilerplate:
+- Drafting Pydantic v2 schema definitions and field validations.
+- Generating the seed script with dummy data for the 5 doctors and working hours.
+- Writing the initial syntax for the GitHub Actions workflow YAML and AWS App Runner Terraform blocks.
+- Scaffolding the `ThreadPoolExecutor` fixture for the concurrency test.
 
 ### 2. Give one example where an AI suggestion improved your work. What did you prompt it with?
-- **Prompt:**  
-  *"How should I model doctor working hours in a relational database for recurring weekly shifts to keep slot calculation fast without periodic batch cron jobs?"*
-- **Outcome:**  
-  The AI suggested modeling working hours using integer weekdays (`0=Monday ... 6=Sunday`) with `start_time` and `end_time` columns rather than fixed calendar dates. This kept the working hours table under 50 rows total and enabled sub-millisecond dynamic slot computation.
+- **Prompt:** *"What is the cleanest way to store recurring weekly doctor working hours in a relational database without having to pre-populate calendar days?"*
+- **Outcome:** The AI suggested storing shifts using weekday integers (`0=Monday` through `6=Sunday`) with `start_time` and `end_time` columns. This fit the dynamic availability approach well because it only requires ~5 rows per doctor instead of maintaining calendar tables.
 
 ### 3. Give one example where AI output was wrong or incomplete and how you caught it.
-- **The Flaw:**  
-  When asked to generate the booking logic, the AI produced a naive application-level check:
+- **The Issue:** When prompted to write the booking logic, the AI generated this check:
   ```python
-  existing = db.query(Appointment).filter_by(doctor_id=doc_id, start_time=slot, status="SCHEDULED").first()
-  if existing:
-      raise HTTPException(400, "Already taken")
-  db.add(new_appointment)
-  db.commit()
+  if db.query(Appointment).filter_by(doctor_id=doc_id, start_time=slot, status="SCHEDULED").first():
+      raise HTTPException(400, "Already booked")
   ```
-- **How It Was Caught:**  
-  This pattern contains a classic **Time-of-Check to Time-of-Use (TOCTOU)** race condition. Two concurrent requests arriving at the same millisecond both pass the `if existing` check and both insert, causing double-booking.  
-  I caught this by running a dedicated multithreaded test (`tests/test_concurrency.py`). I resolved it by enforcing a database-level partial unique index (`uq_doctor_active_slot` on `(doctor_id, start_time) WHERE status != 'CANCELLED'`) and handling the resulting `IntegrityError` with a transaction rollback and `409 Conflict` response.
+- **How I caught it:** This check is vulnerable to a Time-of-Check to Time-of-Use (TOCTOU) race condition. If two requests hit the endpoint at the same millisecond, both pass the `if` check before either commits, creating a double-booking.
+  I caught this by running a multithreaded test (`tests/test_concurrency.py`) with 5 parallel requests hitting the same slot. Under concurrency, both booked successfully. I fixed it by adding a partial unique database index (`(doctor_id, start_time) WHERE status != 'CANCELLED'`) and wrapping the insert with an `IntegrityError` handler that returns `409 Conflict`.
 
 ### 4. Name two decisions you made without AI. Why did you trust your own judgment there?
-1. **Dynamic In-Memory Slot Slicing over Static Slot Pre-generation:**  
-   AI tools often default to creating a `Slot` entity table with boolean `is_available` flags because that pattern is common in novice tutorials. Pre-generating slots creates severe operational overhead: shift changes, sick days, or holidays require cascading database updates. Calculating availability on-the-fly from recurring rules minus active bookings is clean, deterministic, and requires zero maintenance storage.
-2. **Atomic In-Place Rescheduling with Rollback Safety:**  
-   Common AI suggestions implement rescheduling by first cancelling the existing appointment and then creating a new one. If the second booking fails (due to a concurrent collision or validation error), the patient is left with a cancelled appointment and no booking. I enforced an in-place atomic update inside a single transaction so that any failure automatically rolls back, preserving the patient's original appointment.
+1. **Dynamic slot calculation instead of pre-populating a slots table:**  
+   AI models almost always recommend creating a `slots` table with `is_available` boolean rows generated weeks ahead. In real clinic operations, this creates heavy maintenance: doctor shift changes, holidays, or emergency leaves force mass updates on future rows. Generating slots dynamically from working hours minus active bookings takes under 1ms and has zero data drift.
+2. **In-place atomic rescheduling:**  
+   Most AI-generated tutorials implement rescheduling as "cancel old appointment, then book new one". If the second step fails (slot taken or network error), the patient is left with a cancelled appointment and nothing booked. I made rescheduling update `start_time` directly in a single database transaction so that if anything fails, it rolls back cleanly and the original booking is preserved.

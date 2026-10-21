@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     @classmethod
     def assemble_db_connection(cls, v: Optional[str]) -> str:
         if isinstance(v, str) and v.startswith("postgres://"):
-            # Normalize Heroku/Render dialect url to postgresql://
+            # Normalize legacy postgres:// URI dialect to postgresql://
             return v.replace("postgres://", "postgresql://", 1)
         return v or "sqlite:///./clinic.db"
 
