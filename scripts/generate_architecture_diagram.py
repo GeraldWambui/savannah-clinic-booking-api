@@ -28,13 +28,13 @@ def create_architecture_diagram(output_path="docs/architecture_diagram.png"):
                                 facecolor='#0F172A', edgecolor='#1E293B', linewidth=1.5, zorder=3)
     ax.add_patch(doc_header)
 
-    ax.text(1.2, 13.38, "SAVANNAH INFORMATICS  |  ENTERPRISE CLINICAL HEALTH PLATFORM", 
+    ax.text(1.2, 13.38, "SAVANNAH INFORMATICS  |  CLINICAL HEALTH PLATFORM", 
             fontsize=15, fontweight='bold', color='#FFFFFF', va='center', zorder=4, family='sans-serif')
-    ax.text(1.2, 12.98, "System Design & AWS Cloud Architecture Specification (App Runner • Terraform IaC • Concurrency Safety • CI/CD)", 
+    ax.text(1.2, 12.98, "System Design & AWS Cloud Architecture Specification (FastAPI • PostgreSQL • Terraform IaC • CI/CD)", 
             fontsize=10.5, color='#94A3B8', va='center', zorder=4, family='sans-serif')
 
-    ax.text(22.5, 13.38, "DOC ID: ARCH-AWS-2026-PROD", fontsize=10, fontweight='bold', color='#38BDF8', ha='right', va='center', zorder=4)
-    ax.text(22.5, 12.98, "ENVIRONMENT: AWS PRODUCTION (LIVE)  |  TIER: FREE-TIER COMPLIANT", fontsize=9, color='#A7F3D0', ha='right', va='center', zorder=4)
+    ax.text(22.5, 13.38, "DOC ID: ARCH-AWS-2026", fontsize=10, fontweight='bold', color='#38BDF8', ha='right', va='center', zorder=4)
+    ax.text(22.5, 12.98, "STATUS: PRODUCTION LIVE  |  AWS APP RUNNER", fontsize=9, color='#A7F3D0', ha='right', va='center', zorder=4)
 
     # Helper: Load and scale logo image
     def add_logo(x, y, logo_name, zoom=0.22, zorder=6):
@@ -70,14 +70,14 @@ def create_architecture_diagram(output_path="docs/architecture_diagram.png"):
             # Subtitle lines below title
             sub_y = y + h - 1.85
             for line in subtitle_lines:
-                ax.text(x + w/2, sub_y, line, fontsize=8, color='#475569', ha='center', va='top', zorder=6)
+                ax.text(x + w/2, sub_y, line, fontsize=8.2, color='#475569', ha='center', va='top', zorder=6)
                 sub_y -= 0.27
         else:
-            # Clean layout for client cards (title near top, bullet points below)
+            # Clean layout for client cards
             ax.text(x + w/2, y + h - 0.65, title, fontsize=10.5, fontweight='bold', color='#0F172A', ha='center', va='center', zorder=6)
             sub_y = y + h - 0.95
             for line in subtitle_lines:
-                ax.text(x + w/2, sub_y, line, fontsize=8, color='#475569', ha='center', va='top', zorder=6)
+                ax.text(x + w/2, sub_y, line, fontsize=8.2, color='#475569', ha='center', va='top', zorder=6)
                 sub_y -= 0.26
 
     # Helper: Boundary Zone
@@ -158,22 +158,21 @@ def create_architecture_diagram(output_path="docs/architecture_diagram.png"):
                         bg_color='#FFFFFF', border_color='#FCD34D', badge_color='#D97706', logo_zoom=0.18)
 
     # =========================================================================
-    # ZONE 5: PERSISTENCE LAYER (Bottom Center-Right)
+    # ZONE 5: PERSISTENCE LAYER (Bottom Right - Expanded)
     # =========================================================================
-    draw_zone(13.4, 2.0, 4.6, 4.8, "5. PERSISTENCE LAYER", bg_color='#F0FDF4', border_color='#16A34A', title_color='#15803D')
-    draw_component_card(13.65, 2.25, 4.1, 4.1, "Relational Database", 
-                        ["SQLAlchemy 2.0 & PostgreSQL:", "ENGINE-LEVEL RACE PREVENTION", "Partial Unique Constraint:", "CREATE UNIQUE INDEX ON", "appointments(doctor_id, start_time)", "WHERE status != 'CANCELLED'", "Guarantees ZERO double-bookings"], 
-                        "ACID PERSISTENCE", "postgres",
+    draw_zone(13.4, 2.0, 9.5, 4.8, "5. RELATIONAL PERSISTENCE & CONCURRENCY CONTROL", bg_color='#F0FDF4', border_color='#16A34A', title_color='#15803D')
+    
+    # Left Card: PostgreSQL ORM Models
+    draw_component_card(13.65, 2.25, 4.3, 4.1, "Relational Database", 
+                        ["SQLAlchemy 2.0 & PostgreSQL:", "• Doctors & Working Hours", "• Patients & Appointments", "• UTC Datetime Normalization", "• Alembic Migration Scripts", "• Soft-delete via Status Flag"], 
+                        "PERSISTENCE CORE", "postgres",
                         bg_color='#FFFFFF', border_color='#86EFAC', badge_color='#336791', logo_zoom=0.18)
 
-    # =========================================================================
-    # ZONE 6: SRE OBSERVABILITY (Bottom Right)
-    # =========================================================================
-    draw_zone(18.3, 2.0, 4.6, 4.8, "6. SRE OBSERVABILITY", bg_color='#FEF2F2', border_color='#DC2626', title_color='#B91C1C')
-    draw_component_card(18.55, 2.25, 4.1, 4.1, "Prometheus & Grafana", 
-                        ["Production Telemetry (/metrics):", "• Google SRE 4 Golden Signals:", "  - Latency (P50, P95, P99)", "  - Traffic (Requests / sec)", "  - Errors (4xx, 5xx rate)", "  - Saturation (Memory / CPU)", "• Health Check Probe (/health)"], 
-                        "MONITORING & AUDIT", "prometheus",
-                        bg_color='#FFFFFF', border_color='#FCA5A5', badge_color='#E6522C', logo_zoom=0.18)
+    # Right Card: Concurrency Guard (Partial Unique Index)
+    draw_component_card(18.25, 2.25, 4.4, 4.1, "Concurrency Engine Lock", 
+                        ["ENGINE-LEVEL RACE PREVENTION", "Partial Unique Index Invariant:", "CREATE UNIQUE INDEX ON", "appointments(doctor_id, start_time)", "WHERE status != 'CANCELLED'", "Guarantees ZERO double-bookings", "under concurrent booking requests"], 
+                        "DOUBLE-BOOKING GUARD", "postgres",
+                        bg_color='#FFFFFF', border_color='#86EFAC', badge_color='#15803D', logo_zoom=0.18)
 
     # =========================================================================
     # ORTHOGONAL & CLEAN CONNECTION ARROWS
@@ -198,13 +197,10 @@ def create_architecture_diagram(output_path="docs/architecture_diagram.png"):
     draw_orthogonal_arrow((11.0, 6.8), (11.0, 7.6), "3. Auto-Deploy Container", color='#EA580C', label_pos=(11.0, 7.2))
 
     # Arrow 4: App Runner (Coordinator) -> Database (Straight DOWN)
-    draw_orthogonal_arrow((15.7, 7.6), (15.7, 6.8), "4. ACID Transactions & Partial Lock", color='#15803D', label_pos=(15.7, 7.2))
-
-    # Arrow 5: App Runner (Telemetry) -> Prometheus (Straight DOWN)
-    draw_orthogonal_arrow((20.6, 7.6), (20.6, 6.8), "5. SRE Telemetry Scrape (/metrics)", color='#B91C1C', label_pos=(20.6, 7.2))
+    draw_orthogonal_arrow((18.1, 7.6), (18.1, 6.8), "4. ACID Transactions & Partial Unique Index Lock", color='#15803D', label_pos=(18.1, 7.2))
 
     # =========================================================================
-    # FOOTER: TECHNOLOGY STACK (Logos with names below them)
+    # FOOTER: TECHNOLOGY STACK (Logos with names below them - 7 Core Techs)
     # =========================================================================
     footer_bar = FancyBboxPatch((0.8, 0.75), 22.1, 1.05, boxstyle="round,pad=0.06,rounding_size=0.1",
                                 facecolor='#F8FAFC', edgecolor='#CBD5E1', linewidth=1.2, zorder=3)
@@ -219,12 +215,11 @@ def create_architecture_diagram(output_path="docs/architecture_diagram.png"):
         ("Python 3.12", "python", 0.13),
         ("FastAPI", "fastapi", 0.13),
         ("PostgreSQL", "postgres", 0.13),
-        ("GitHub Actions", "github", 0.13),
-        ("Prometheus", "prometheus", 0.13)
+        ("GitHub Actions", "github", 0.13)
     ]
 
-    start_x = 5.6
-    spacing = 2.15
+    start_x = 6.2
+    spacing = 2.45
     for i, (name, logo_key, z_val) in enumerate(tech_stack):
         cx = start_x + (i * spacing)
         # Logo on top

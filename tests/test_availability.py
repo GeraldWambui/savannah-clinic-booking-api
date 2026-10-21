@@ -61,14 +61,10 @@ def test_doctor_not_found(client):
     assert "not found" in response.json()["message"].lower()
 
 
-def test_metrics_and_request_id_tracing(client):
-    # Test that incoming request receives X-Request-ID
+def test_health_and_request_id_tracing(client):
     res = client.get("/health")
     assert res.status_code == 200
     assert "x-request-id" in res.headers
-
-    # Test that /metrics endpoint returns Prometheus exposition format
-    metrics_res = client.get("/metrics")
-    assert metrics_res.status_code == 200
-    assert "clinic_http_requests_total" in metrics_res.text
+    assert "x-process-time" in res.headers
+    assert res.json()["status"] == "healthy"
 
