@@ -30,8 +30,8 @@ jobs:
         run: |
           pytest -v
 
-  deploy-gcp:
-    name: Build & Deploy to Google Cloud Run
+  deploy-aws:
+    name: Build & Deploy to AWS ECR and App Runner
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -40,47 +40,69 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        if: "${{ env.GCP_SA_KEY != '' }}"
-        env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-        uses: google-github-actions/auth@v2
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Set up Google Cloud SDK
-        if: "${{ env.GCP_SA_KEY != '' }}"
-        env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-        uses: google-github-actions/setup-gcloud@v2
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Configure Docker for Artifact Registry
-        if: "${{ env.GCP_SA_KEY != '' }}"
+      - name: Build, tag, and push Docker image to Amazon ECR
         env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: savannah-clinic-api
+          IMAGE_TAG: latest
         run: |
-          gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+          docker build -t $REGISTRY/$REPOSITORY:$IMAGE_TAG -t $REGISTRY/$REPOSITORY:${{ github.sha }} .
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$REPOSITORY:${{ github.sha }}
 
-      - name: Build and Push Docker Container Image
-        if: "${{ env.GCP_SA_KEY != '' }}"
-        env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      - name: Create or Update AWS App Runner Service
         run: |
-          IMAGE_TAG="europe-west1-docker.pkg.dev/${GCP_PROJECT_ID}/clinic-booking-repo/clinic-booking-api"
-          docker build -t "${IMAGE_TAG}:${{ github.sha }}" -t "${IMAGE_TAG}:latest" .
-          docker push "${IMAGE_TAG}:${{ github.sha }}"
-          docker push "${IMAGE_TAG}:latest"
+          SERVICE_NAME="savannah-clinic-api"
+          ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/AppRunnerECRAccessRole"
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/savannah-clinic-api:latest"
 
-      - name: Deploy Container to Google Cloud Run
-        if: "${{ env.GCP_SA_KEY != '' }}"
-        env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
-          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-        run: |
-          gcloud run deploy clinic-booking-api \
-            --image="europe-west1-docker.pkg.dev/${GCP_PROJECT_ID}/clinic-booking-repo/clinic-booking-api:${{ github.sha }}" \
-            --region=europe-west1 \
-            --platform=managed \
-            --allow-unauthenticated \
-            --port=8000
+          # Check if service already exists
+          SERVICE_ARN=$(aws apprunner list-services --query "ServiceSummaryList[?ServiceName=='$SERVICE_NAME'].ServiceArn" --output text)
+
+          if [ -z "$SERVICE_ARN" ]; then
+            echo "Creating new AWS App Runner service..."
+            aws apprunner create-service \
+              --service-name "$SERVICE_NAME" \
+              --source-configuration '{
+                "ImageRepository": {
+                  "ImageIdentifier": "'"$IMAGE_URI"'",
+                  "ImageConfiguration": {
+                    "Port": "8000",
+                    "RuntimeEnvironmentVariables": {
+                      "ENVIRONMENT": "production",
+                      "PORT": "8000"
+                    }
+                  },
+                  "ImageRepositoryType": "ECR"
+                },
+                "AuthenticationConfiguration": {
+                  "AccessRoleArn": "'"$ROLE_ARN"'"
+                },
+                "AutoDeploymentsEnabled": true
+              }' \
+              --instance-configuration '{
+                "Cpu": "1 vCPU",
+                "Memory": "2 GB"
+              }' \
+              --health-check-configuration '{
+                "Protocol": "HTTP",
+                "Path": "/health",
+                "Interval": 10,
+                "Timeout": 5,
+                "HealthyThreshold": 1,
+                "UnhealthyThreshold": 5
+              }'
+          else
+            echo "App Runner service already exists with ARN: $SERVICE_ARN. Auto-deploy will trigger on ECR push."
+          fi
