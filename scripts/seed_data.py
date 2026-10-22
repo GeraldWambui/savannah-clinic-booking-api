@@ -6,7 +6,6 @@ import sys
 import os
 from datetime import time
 
-# Ensure project root is in python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.db.session import SessionLocal, engine
@@ -21,7 +20,6 @@ def seed_database():
     db = SessionLocal()
 
     try:
-        # Check if already seeded
         if db.query(Doctor).count() > 0:
             print("Database already contains doctor records. Skipping seed.")
             return
@@ -66,8 +64,7 @@ def seed_database():
             db.add(doctor)
             db.flush()
 
-            # Assign working hours: Monday through Friday, 09:00 to 17:00
-            for day_idx in range(5):  # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri
+            for day_idx in range(5):
                 wh = DoctorWorkingHours(
                     doctor_id=doctor.id,
                     day_of_week=day_idx,
@@ -77,7 +74,6 @@ def seed_database():
                 )
                 db.add(wh)
 
-        # Add sample patients
         patients_data = [
             {
                 "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",

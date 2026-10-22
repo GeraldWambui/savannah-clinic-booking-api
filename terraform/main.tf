@@ -12,7 +12,6 @@ provider "aws" {
   region = var.aws_region
 }
 
-# 1. Amazon Elastic Container Registry (ECR)
 resource "aws_ecr_repository" "clinic_ecr" {
   name                 = var.ecr_repo_name
   image_tag_mutability = "MUTABLE"
@@ -28,7 +27,6 @@ resource "aws_ecr_repository" "clinic_ecr" {
   }
 }
 
-# 2. IAM Role for App Runner to pull container images from ECR
 resource "aws_iam_role" "apprunner_ecr_role" {
   name = "AppRunnerECRAccessRole"
 
@@ -56,7 +54,6 @@ resource "aws_iam_role_policy_attachment" "apprunner_ecr_policy" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppRunnerServicePolicyForECRAccess"
 }
 
-# 3. AWS App Runner Service (Fully Managed Serverless Container Platform)
 resource "aws_apprunner_service" "clinic_service" {
   service_name = var.service_name
   depends_on   = [aws_iam_role_policy_attachment.apprunner_ecr_policy]

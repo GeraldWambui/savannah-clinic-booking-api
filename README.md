@@ -160,20 +160,16 @@ All endpoints are available at the root and under `/api/v1`.
 
 #### Option A: Python Virtual Environment
 ```bash
-# 1. Clone & enter repository
 git clone https://github.com/GeraldWambui/savannah-clinic-booking-api.git
 cd savannah-clinic-booking-api
 
-# 2. Setup virtual environment & dependencies
 python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# 3. Run database migrations & seed 5 doctors
 alembic upgrade head
 python scripts/seed_data.py
 
-# 4. Start server
 uvicorn app.main:app --reload
 ```
 Interactive docs: [http://localhost:8000/docs](http://localhost:8000/docs)
@@ -188,42 +184,14 @@ Boots PostgreSQL 16, runs Alembic migrations, seeds doctors, and serves API at p
 
 ### 3. Automated Test Suite
 
-The test suite covers **15 automated tests** across three test modules, executing against an isolated test database with fixtures configured in [`tests/conftest.py`](tests/conftest.py).
-
-Run the suite locally:
 ```bash
 pytest -v
 ```
 
-#### A. Doctor Availability & System Probes (`tests/test_availability.py`)
-
-| Test Function | What It Validates | Expected Outcome |
-| :--- | :--- | :--- |
-| `test_get_doctor_availability_weekday` | Dynamic slot generation for weekday shifts (09:00–17:00 EAT). | `200 OK`, exactly 16 open 30-min slots generated in memory. |
-| `test_get_doctor_availability_weekend_empty` | Availability querying on days doctor does not work (e.g., Sunday). | `200 OK`, `0` slots available without error. |
-| `test_availability_excludes_booked_slot_and_restores_on_cancel` | Real-time dynamic subtraction and restoration lifecycle. | Booking reduces slot count (16 → 15) and omits slot. Cancelling restores slot (15 → 16). |
-| `test_doctor_not_found` | Querying availability for non-existent doctor ID. | `404 Not Found` with structured error message. |
-| `test_health_and_request_id_tracing` | Service health check probe and telemetry middleware. | `200 OK`, response headers contain `X-Request-ID` UUID and `X-Process-Time`. |
-
-#### B. Booking, Rescheduling & Lifecycle Rules (`tests/test_booking.py`)
-
-| Test Function | What It Validates | Expected Outcome |
-| :--- | :--- | :--- |
-| `test_book_appointment_success` | Happy-path booking within doctor working hours. | `201 Created`, status `SCHEDULED`, exact 30-min window (`start_time` to `end_time`). |
-| `test_book_appointment_outside_working_hours` | Attempting to book a time outside doctor's configured shift. | `400 Bad Request` ("outside the doctor's working hours"). |
-| `test_book_appointment_invalid_boundary` | Attempting to book unaligned minutes (e.g., `07:15:00`). | `400 Bad Request` (enforces `:00` or `:30` boundaries). |
-| `test_book_appointment_in_the_past` | Scheduling an appointment in the past or under the cutoff. | `400 Bad Request` ("Cannot book appointments in the past"). |
-| `test_book_appointment_duplicate_returns_409` | Second patient attempting to book an already occupied slot. | `409 Conflict` ("Slot is already taken for this doctor"). |
-| `test_cancel_appointment_lifecycle` | Soft cancellation with audit reason and double-cancellation guard. | `200 OK` on first cancel with `cancellation_reason`; `400 Bad Request` if cancelled again. |
-| `test_reschedule_appointment_lifecycle` | Atomic in-place rescheduling and old slot release. | Conflicting new slot returns `409 Conflict`. Successful reschedule frees previous slot for other patients. |
-| `test_patient_upcoming_appointments_bonus` | **(Bonus Requirement)** Fetching patient's upcoming appointments. | `200 OK`, appointments sorted chronologically in ascending (`ASC`) order. |
-
-#### C. Concurrency & Race Condition Defense (`tests/test_concurrency.py`)
-
-| Test Function | What It Validates | Expected Outcome |
-| :--- | :--- | :--- |
-| `test_concurrent_booking_race_condition_prevention` | Sequential collision defense across API client calls. | First booking succeeds (`201 Created`); subsequent conflicting attempts return `409 Conflict`. |
-| `test_multithreaded_concurrent_booking_race_condition` | **Real OS-level race condition**: 5 concurrent OS threads in a `ThreadPoolExecutor` simultaneously attempting to book the exact same doctor and slot. | **Exactly 1 succeeds (`201`)**, **4 fail safely with `409 Conflict`**, and database count confirms **only 1 row exists**. |
+15 tests pass across [`tests/`](tests/):
+- **Availability (`test_availability.py`):** Dynamic 30-min slot generation, weekend handling, booked slot exclusion/restoration on cancel, 404s, `/health` probe.
+- **Booking (`test_booking.py`):** Working hours, 30-min boundaries, past-time cutoff, 409 conflict on duplicate bookings, soft-cancellation audit, atomic rescheduling, upcoming patient bookings.
+- **Concurrency (`test_concurrency.py`):** 5 parallel OS threads competing for the same slot (1 succeeds `201`, 4 reject `409`).
 
 
 ---

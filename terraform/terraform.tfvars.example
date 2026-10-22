@@ -1,4 +1,3 @@
-# AWS Terraform Configuration Example
 aws_region   = "us-east-1"
 service_name = "savannah-clinic-api"
 ecr_repo_name = "savannah-clinic-api"

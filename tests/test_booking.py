@@ -18,7 +18,6 @@ def test_book_appointment_success(client):
 
 
 def test_book_appointment_outside_working_hours(client):
-    # 04:00 UTC = 07:00 EAT (Doctor starts at 09:00 EAT)
     payload = {
         "doctor_id": "11111111-1111-1111-1111-111111111111",
         "patient_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
@@ -30,7 +29,6 @@ def test_book_appointment_outside_working_hours(client):
 
 
 def test_book_appointment_invalid_boundary(client):
-    # 07:15 is not a 30-min boundary (:00 or :30)
     payload = {
         "doctor_id": "11111111-1111-1111-1111-111111111111",
         "patient_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
@@ -61,7 +59,6 @@ def test_book_appointment_duplicate_returns_409(client):
     res1 = client.post("/appointments", json=payload)
     assert res1.status_code == 201
 
-    # Second patient attempts to book same doctor and slot
     payload2 = {
         "doctor_id": "11111111-1111-1111-1111-111111111111",
         "patient_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
@@ -81,7 +78,6 @@ def test_cancel_appointment_lifecycle(client):
     assert book_res.status_code == 201
     appt_id = book_res.json()["id"]
 
-    # Cancel with reason
     cancel_res = client.patch(f"/appointments/{appt_id}/cancel", json={
         "reason": "Recovered from illness"
     })
@@ -89,7 +85,6 @@ def test_cancel_appointment_lifecycle(client):
     assert cancel_res.json()["status"] == "CANCELLED"
     assert cancel_res.json()["cancellation_reason"] == "Recovered from illness"
 
-    # Cancelling again returns 400
     cancel_again = client.patch(f"/appointments/{appt_id}/cancel", json={
         "reason": "Trying to cancel again"
     })
@@ -101,34 +96,29 @@ def test_reschedule_appointment_lifecycle(client):
     doc_id = "11111111-1111-1111-1111-111111111111"
     pat_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
-    # 1. Book first appointment at 10:00 UTC
     appt1 = client.post("/appointments", json={
         "doctor_id": doc_id,
         "patient_id": pat_id,
         "start_time": "2026-10-23T10:00:00Z"
     }).json()
 
-    # 2. Book second appointment at 10:30 UTC
     appt2 = client.post("/appointments", json={
         "doctor_id": doc_id,
         "patient_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
         "start_time": "2026-10-23T10:30:00Z"
     }).json()
 
-    # 3. Try to reschedule appt1 into appt2's slot (should fail with 409)
     conflict_res = client.patch(f"/appointments/{appt1['id']}/reschedule", json={
         "new_start_time": "2026-10-23T10:30:00Z"
     })
     assert conflict_res.status_code == 409
 
-    # 4. Reschedule appt1 into a free slot (11:00 UTC)
     success_res = client.patch(f"/appointments/{appt1['id']}/reschedule", json={
         "new_start_time": "2026-10-23T11:00:00Z"
     })
     assert success_res.status_code == 200
     assert "11:00:00" in success_res.json()["start_time"]
 
-    # 5. Original slot (10:00 UTC) is now free; another patient can book it!
     reuse_res = client.post("/appointments", json={
         "doctor_id": doc_id,
         "patient_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
@@ -141,7 +131,6 @@ def test_patient_upcoming_appointments_bonus(client):
     doc_id = "11111111-1111-1111-1111-111111111111"
     pat_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
-    # Book two upcoming appointments on different dates
     client.post("/appointments", json={
         "doctor_id": doc_id,
         "patient_id": pat_id,
@@ -153,11 +142,9 @@ def test_patient_upcoming_appointments_bonus(client):
         "start_time": "2026-10-23T06:00:00Z"
     })
 
-    # Fetch patient upcoming appointments
     res = client.get(f"/patients/{pat_id}/appointments")
     assert res.status_code == 200
     data = res.json()
     assert data["total_upcoming"] >= 2
-    # Verify sorted chronologically ASC
     dates = [a["start_time"] for a in data["appointments"]]
     assert dates == sorted(dates)

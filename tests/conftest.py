@@ -12,7 +12,6 @@ from app.models.doctor import Doctor
 from app.models.schedule import DoctorWorkingHours
 from app.models.patient import Patient
 
-# In-memory SQLite for test isolation
 TEST_DATABASE_URL = "sqlite:///:memory:"
 
 engine = create_engine(
@@ -29,7 +28,6 @@ def db():
     Base.metadata.create_all(bind=engine)
     session = TestingSessionLocal()
     
-    # Seed default test data
     doc1 = Doctor(
         id="11111111-1111-1111-1111-111111111111",
         name="Dr. Test Sarah",
@@ -47,7 +45,6 @@ def db():
     session.add_all([doc1, doc2])
     session.flush()
 
-    # Working hours: Monday to Friday 09:00 - 17:00
     for day in range(5):
         session.add(DoctorWorkingHours(
             doctor_id=doc1.id,

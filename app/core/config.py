@@ -8,15 +8,12 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
-    # Database
     DATABASE_URL: str = "sqlite:///./clinic.db"
     
-    # Clinic Domain Configuration
     SLOT_DURATION_MINUTES: int = 30
     MIN_BOOKING_LEAD_HOURS: int = 1
     CLINIC_TIMEZONE: str = "Africa/Nairobi"
     
-    # Environment
     ENVIRONMENT: str = "development"
 
     model_config = SettingsConfigDict(
@@ -30,7 +27,6 @@ class Settings(BaseSettings):
     @classmethod
     def assemble_db_connection(cls, v: Optional[str]) -> str:
         if isinstance(v, str) and v.startswith("postgres://"):
-            # Normalize legacy postgres:// URI dialect to postgresql://
             return v.replace("postgres://", "postgresql://", 1)
         return v or "sqlite:///./clinic.db"
 

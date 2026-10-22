@@ -56,12 +56,10 @@ def get_available_slots_for_doctor(
     if now_utc is None:
         now_utc = datetime.now(timezone.utc)
 
-    # 1. Verify doctor exists and is active
     doctor = db.get(Doctor, doctor_id)
     if not doctor or not doctor.is_active:
         raise DoctorNotFoundException(doctor_id)
 
-    # 2. Get doctor's working hours for the target day of week
     day_of_week = target_date.weekday()
     stmt_wh = select(DoctorWorkingHours).where(
         DoctorWorkingHours.doctor_id == doctor_id,
@@ -70,15 +68,12 @@ def get_available_slots_for_doctor(
     )
     working_hours = db.scalars(stmt_wh).first()
     if not working_hours:
-        # Doctor doesn't work on this day
         return []
 
-    # 3. Generate candidate slots
     candidate_slots = generate_candidate_slots(target_date, working_hours)
     if not candidate_slots:
         return []
 
-    # 4. Filter out slots within the 1-hour booking cutoff
     cutoff_time = now_utc + timedelta(hours=settings.MIN_BOOKING_LEAD_HOURS)
     valid_candidate_slots = [
         (s_start, s_end) for s_start, s_end in candidate_slots
@@ -88,7 +83,6 @@ def get_available_slots_for_doctor(
     if not valid_candidate_slots:
         return []
 
-    # 5. Query active appointments for this doctor on the target date window
     day_start_utc = datetime.combine(target_date, datetime.min.time(), tzinfo=get_clinic_timezone()).astimezone(timezone.utc)
     day_end_utc = datetime.combine(target_date, datetime.max.time(), tzinfo=get_clinic_timezone()).astimezone(timezone.utc)
 
@@ -102,10 +96,8 @@ def get_available_slots_for_doctor(
     )
     booked_start_times = set(db.scalars(stmt_appts).all())
 
-    # 6. Candidate slots minus booked slots = Available slots
     available_slots: List[Dict[str, Any]] = []
     for s_start, s_end in valid_candidate_slots:
-        # Normalize comparison: SQLite or Postgres might return naive or aware
         is_booked = False
         for b_time in booked_start_times:
             if b_time.tzinfo is None:

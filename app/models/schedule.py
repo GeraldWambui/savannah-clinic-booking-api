@@ -33,7 +33,6 @@ class DoctorWorkingHours(Base, TimestampMixin):
     end_time: Mapped[time] = mapped_column(Time, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    # Relationships
     doctor: Mapped["Doctor"] = relationship("Doctor", back_populates="working_hours")
 
     __table_args__ = (

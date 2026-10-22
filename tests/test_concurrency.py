@@ -24,7 +24,6 @@ def test_concurrent_booking_race_condition_prevention(client):
     pat_id2 = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
     slot_time = "2026-10-23T09:00:00Z"
 
-    # First booking claims the slot
     res1 = client.post("/appointments", json={
         "doctor_id": doc_id,
         "patient_id": pat_id1,
@@ -33,7 +32,6 @@ def test_concurrent_booking_race_condition_prevention(client):
     assert res1.status_code == 201
     assert res1.json()["status"] == "SCHEDULED"
 
-    # Conflicting booking attempt 1 for the same doctor and slot
     res2 = client.post("/appointments", json={
         "doctor_id": doc_id,
         "patient_id": pat_id2,
@@ -42,7 +40,6 @@ def test_concurrent_booking_race_condition_prevention(client):
     assert res2.status_code == 409
     assert "already taken" in res2.json()["message"].lower()
 
-    # Conflicting booking attempt 2 for the same doctor and slot
     res3 = client.post("/appointments", json={
         "doctor_id": doc_id,
         "patient_id": pat_id1,
@@ -73,7 +70,6 @@ def test_multithreaded_concurrent_booking_race_condition():
     Base.metadata.create_all(bind=engine)
     SessionFactory = sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
 
-    # Seed doctor and 2 patients
     session = SessionFactory()
     doc = Doctor(
         id="33333333-3333-3333-3333-333333333333",
@@ -138,7 +134,6 @@ def test_multithreaded_concurrent_booking_race_condition():
     assert codes.count(201) == 1, f"Expected exactly 1 booking to succeed, got {codes.count(201)}"
     assert codes.count(409) == 4, f"Expected 4 conflicts, got {codes.count(409)}"
 
-    # Verify only 1 appointment exists in database
     verify_session = SessionFactory()
     count = verify_session.query(Appointment).filter(
         Appointment.doctor_id == "33333333-3333-3333-3333-333333333333",

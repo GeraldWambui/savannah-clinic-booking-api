@@ -15,10 +15,8 @@ app = FastAPI(
 
 from app.core.telemetry import RequestTracingMiddleware
 
-# Request correlation & tracing middleware
 app.add_middleware(RequestTracingMiddleware)
 
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -27,7 +25,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global Exception Handlers
 app.add_exception_handler(ClinicException, clinic_exception_handler)
 
 
@@ -50,8 +47,6 @@ def health_check():
     }
 
 
-
-# Include routers under both standard /api/v1 and root paths for endpoint convenience
 app.include_router(api_router, prefix=settings.API_V1_STR)
 app.include_router(api_router)
 

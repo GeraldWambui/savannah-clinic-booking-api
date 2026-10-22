@@ -22,7 +22,6 @@ class Doctor(Base, TimestampMixin):
     specialization: Mapped[str] = mapped_column(String(120), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    # Relationships
     working_hours: Mapped[List["DoctorWorkingHours"]] = relationship(
         "DoctorWorkingHours",
         back_populates="doctor",

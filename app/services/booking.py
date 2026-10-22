@@ -35,7 +35,6 @@ def validate_slot_timing(start_time: datetime, now_utc: datetime = None) -> date
     Returns normalized UTC datetime.
     """
     if start_time.tzinfo is None:
-        # Assume UTC if naive
         start_time = start_time.replace(tzinfo=timezone.utc)
     else:
         start_time = start_time.astimezone(timezone.utc)
@@ -43,15 +42,12 @@ def validate_slot_timing(start_time: datetime, now_utc: datetime = None) -> date
     if now_utc is None:
         now_utc = datetime.now(timezone.utc)
 
-    # 1. 30-minute boundary check
     if start_time.minute not in (0, 30) or start_time.second != 0 or start_time.microsecond != 0:
         raise InvalidSlotBoundaryException()
 
-    # 2. Not in the past
     if start_time <= now_utc:
         raise SlotInPastException()
 
-    # 3. 1-hour lead time (Bonus requirement)
     min_allowed = now_utc + timedelta(hours=settings.MIN_BOOKING_LEAD_HOURS)
     if start_time < min_allowed:
         raise BookingLeadTimeException()
@@ -97,16 +93,13 @@ def book_appointment(
     now_utc: datetime = None
 ) -> Appointment:
     """Creates a new appointment with full validation and race-condition safety."""
-    # 1. Validate patient existence
     patient = db.get(Patient, patient_id)
     if not patient:
         raise PatientNotFoundException(patient_id)
 
-    # 2. Validate timing & boundary
     norm_start_utc = validate_slot_timing(start_time, now_utc=now_utc)
     norm_start_utc, norm_end_utc = validate_doctor_schedule(db, doctor_id, norm_start_utc)
 
-    # 3. Check for existing active booking at this time
     stmt_conflict = select(Appointment).where(
         and_(
             Appointment.doctor_id == doctor_id,
@@ -118,7 +111,6 @@ def book_appointment(
     if existing:
         raise SlotConflictException()
 
-    # 4. Insert appointment and commit (catching partial unique index violations)
     appointment = Appointment(
         doctor_id=doctor_id,
         patient_id=patient_id,
@@ -173,15 +165,12 @@ def reschedule_appointment(
     if appointment.status == AppointmentStatus.CANCELLED.value:
         raise CannotRescheduleCancelledException()
 
-    # Validate new slot timing & doctor schedule
     norm_start_utc = validate_slot_timing(new_start_time, now_utc=now_utc)
     norm_start_utc, norm_end_utc = validate_doctor_schedule(db, appointment.doctor_id, norm_start_utc)
 
-    # Check if slot is the same as current
     if appointment.start_time == norm_start_utc:
         return appointment
 
-    # Check if target slot is already taken by another active appointment
     stmt_conflict = select(Appointment).where(
         and_(
             Appointment.doctor_id == appointment.doctor_id,
@@ -194,7 +183,6 @@ def reschedule_appointment(
         raise SlotConflictException()
 
     try:
-        # Atomic update
         appointment.start_time = norm_start_utc
         appointment.end_time = norm_end_utc
         db.commit()

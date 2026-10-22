@@ -20,7 +20,6 @@ class Patient(Base, TimestampMixin):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     phone: Mapped[str] = mapped_column(String(30), nullable=False)
 
-    # Relationships
     appointments: Mapped[List["Appointment"]] = relationship(
         "Appointment",
         back_populates="patient",

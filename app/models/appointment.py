@@ -56,12 +56,10 @@ class Appointment(Base, TimestampMixin):
         nullable=True
     )
 
-    # Relationships
     doctor: Mapped["Doctor"] = relationship("Doctor", back_populates="appointments")
     patient: Mapped["Patient"] = relationship("Patient", back_populates="appointments")
 
     __table_args__ = (
-        # Enforce no double-booking for the same doctor at the same slot when status != 'CANCELLED'
         Index(
             "uq_doctor_active_slot",
             "doctor_id",
