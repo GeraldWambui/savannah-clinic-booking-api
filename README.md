@@ -172,7 +172,7 @@ python scripts/seed_data.py
 
 uvicorn app.main:app --reload
 ```
-Interactive docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+
 
 #### Option B: Docker Compose
 ```bash
