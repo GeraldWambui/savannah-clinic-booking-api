@@ -2,6 +2,10 @@
 
 <p align="left">
   <img src="https://skillicons.dev/icons?i=aws,terraform,docker,python,fastapi,postgres,githubactions,git" />
+  &nbsp;
+  <a href="https://claude.ai" target="_blank" rel="noreferrer">
+    <img src="https://cdn.simpleicons.org/claude/D97757" height="48" alt="Claude Code" />
+  </a>
 </p>
 
 [![CI/CD Pipeline](https://github.com/GeraldWambui/savannah-clinic-booking-api/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/GeraldWambui/savannah-clinic-booking-api/actions/workflows/ci-cd.yml)
@@ -10,6 +14,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
 [![Terraform AWS](https://img.shields.io/badge/Terraform-AWS%20IaC-7B42BC?logo=terraform)](https://www.terraform.io/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16%20Ready-336791?logo=postgresql)](https://www.postgresql.org/)
+[![Claude Code](https://img.shields.io/badge/Claude%20Code-AI%20Tooling-D97757?logo=claude)](https://claude.ai)
 [![Tests](https://img.shields.io/badge/Tests-15%2F15%20Passing-success)](tests/)
 
 A robust, concurrency-safe REST API for outpatient appointment scheduling and dynamic doctor availability. Built for the **Savannah Informatics Backend Developer Take-Home Assessment**.
@@ -237,7 +242,7 @@ flowchart LR
 ## Section 4: AI Reflection
 
 ### 1. What did you use AI for across the four sections?
-I used AI as a typing accelerator for routine boilerplate:
+I used **Claude Code** as an AI pair programmer and typing accelerator for routine boilerplate:
 - Drafting Pydantic v2 schema definitions and field validations.
 - Generating the seed script with initial fixtures for the 5 doctors and working hours.
 - Writing the initial syntax for the GitHub Actions workflow YAML and AWS App Runner Terraform blocks.
@@ -267,5 +272,6 @@ I used AI as a typing accelerator for routine boilerplate:
 ### Author & Engineering Details
 - **Candidate:** Gerald Wambui
 - **Assessment:** Savannah Informatics Backend Developer Take-Home Assessment
+- **AI Tooling Used:** Claude Code (Anthropic)
 - **Repository:** [https://github.com/GeraldWambui/savannah-clinic-booking-api](https://github.com/GeraldWambui/savannah-clinic-booking-api)
 - **Live AWS Production API:** [https://hf5vyszv5v.us-east-1.awsapprunner.com](https://hf5vyszv5v.us-east-1.awsapprunner.com)
