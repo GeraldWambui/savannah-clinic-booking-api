@@ -262,10 +262,26 @@ I used **Claude Code** as an AI pair programmer and typing accelerator for routi
   I caught this by running a multithreaded test (`tests/test_concurrency.py`) with 5 parallel requests hitting the same slot. Under concurrency, both booked successfully. I fixed it by adding a partial unique database index (`(doctor_id, start_time) WHERE status != 'CANCELLED'`) and wrapping the insert with an `IntegrityError` handler that returns `409 Conflict`.
 
 ### 4. Name two decisions you made without AI. Why did you trust your own judgment there?
-1. **Dynamic slot calculation instead of pre-populating a slots table:**  
-   AI models almost always recommend creating a `slots` table with `is_available` boolean rows generated weeks ahead. In real clinic operations, this creates heavy maintenance: doctor shift changes, holidays, or emergency leaves force mass updates on future rows. Generating slots dynamically from working hours minus active bookings takes under 1ms and has zero data drift.
-2. **In-place atomic rescheduling:**  
-   Most AI-generated tutorials implement rescheduling as "cancel old appointment, then book new one". If the second step fails (slot taken or network error), the patient is left with a cancelled appointment and nothing booked. I made rescheduling update `start_time` directly in a single database transaction so that if anything fails, it rolls back cleanly and the original booking is preserved.
+
+1. **Cloud Architecture & Infrastructure Evolution (GCP → Railway → Render → AWS App Runner):**  
+   Infrastructure decisions required practical operational evaluation rather than AI code generation:
+   - **GCP:** I initially started with Google Cloud Run given prior production experience with its analytics APIs for the Google Play Store, but paused due to large prepaid billing friction.
+   - **Railway:** Considered as a lightweight container host, but on October 21st they experienced unexpected downtime and disclosed a security breach from an ongoing attack.
+   - **Render:** Excellent ergonomics, but free-tier instances suffer from 50-second cold starts. The options were to write a periodic keep-warm GitHub Actions workflow or upgrade to paid; I chose neither.
+   - **AWS App Runner (Final Selection):** I decided on AWS to build an enterprise-grade, highly available platform that stands out. After evaluating ECS and AWS Amplify, I chose **AWS App Runner** provisioned via **Terraform (IaC)** and Docker. I chose `us-east-1` for maximum global availability and popularity, ensuring reviewer evaluations never experience dropped requests or cold-start latency.
+
+2. **Defensive Concurrency & Lock-Free Atomic Scheduling:**  
+   Operating under Murphy's Law ("if something can go wrong, it will go wrong"), I rejected optimistic application-level checks in favor of database-enforced atomicity:
+   - By delegating slot uniqueness to a database-level partial unique index (`WHERE status != 'CANCELLED'`) rather than an application-level read-then-write check, the database engine enforces atomic isolation, preventing Time-of-Check-to-Time-of-Use (TOCTOU) race conditions and avoiding lock-escalation deadlocks even when multiple threads execute concurrent read-modify-write cycles on the exact same millisecond.
+   - In-place atomic rescheduling: Updates `start_time` within a single ACID transaction rather than the common "cancel old then book new" pattern, guaranteeing that if the target slot is unavailable, the transaction rolls back cleanly without losing the patient's existing appointment.
+
+---
+
+### Future Scope & Performance Improvements
+
+- **API Authentication & Abuse Prevention:** Although outside the assessment scope, a production follow-up is to implement OAuth2 JWT authentication and token-bucket rate limiting to prevent slot hoarding and endpoint abuse.
+- **Read-Through Caching:** Doctor shift configurations are read-heavy and change infrequently; introducing a Redis cache for weekly schedule lookups with cache invalidation on schedule modification would cut availability latency to sub-millisecond ranges.
+- **Connection Pooling & Query Optimization:** Tuning database connection pool sizing (`pool_size=20`, `max_overflow=10`, `pool_pre_ping=True`) ensures persistent connection reuse and prevents socket exhaustion during high-concurrency booking bursts.
 
 ---
 
