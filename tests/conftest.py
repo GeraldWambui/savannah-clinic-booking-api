@@ -1,9 +1,18 @@
 import pytest
-from datetime import time
+from datetime import time, datetime, timezone, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
+
+def get_test_future_dates():
+    today = datetime.now(timezone.utc).date()
+    days_to_add = (0 - today.weekday() + 7) % 7
+    if days_to_add == 0:
+        days_to_add = 7
+    weekday = today + timedelta(days=days_to_add)
+    weekend = weekday + timedelta(days=6)
+    return weekday, weekend
 
 from app.db.base import Base
 from app.db.session import get_db

@@ -5,6 +5,7 @@ from datetime import datetime, timezone, time
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
+from tests.conftest import get_test_future_dates
 from app.db.base import Base
 from app.models.doctor import Doctor
 from app.models.schedule import DoctorWorkingHours
@@ -19,10 +20,11 @@ def test_concurrent_booking_race_condition_prevention(client):
     2. All subsequent or concurrent conflicting requests fail gracefully with HTTP 409 Conflict.
     3. Zero double-booking occurs in the database.
     """
+    weekday, _ = get_test_future_dates()
     doc_id = "22222222-2222-2222-2222-222222222222"
     pat_id1 = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
     pat_id2 = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
-    slot_time = "2026-10-23T09:00:00Z"
+    slot_time = f"{weekday.isoformat()}T09:00:00Z"
 
     res1 = client.post("/appointments", json={
         "doctor_id": doc_id,
@@ -102,7 +104,8 @@ def test_multithreaded_concurrent_booking_race_condition():
     session.commit()
     session.close()
 
-    target_slot = datetime(2026, 10, 23, 7, 0, tzinfo=timezone.utc)
+    weekday, _ = get_test_future_dates()
+    target_slot = datetime(weekday.year, weekday.month, weekday.day, 7, 0, tzinfo=timezone.utc)
 
     def attempt_booking(patient_id: str) -> tuple[int, str]:
         db = SessionFactory()

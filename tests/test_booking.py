@@ -1,11 +1,13 @@
 from datetime import datetime, timezone, timedelta
+from tests.conftest import get_test_future_dates
 
 
 def test_book_appointment_success(client):
+    weekday, _ = get_test_future_dates()
     payload = {
         "doctor_id": "11111111-1111-1111-1111-111111111111",
         "patient_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-        "start_time": "2026-10-23T07:00:00Z"
+        "start_time": f"{weekday.isoformat()}T07:00:00Z"
     }
     response = client.post("/appointments", json=payload)
     assert response.status_code == 201
@@ -18,10 +20,11 @@ def test_book_appointment_success(client):
 
 
 def test_book_appointment_outside_working_hours(client):
+    weekday, _ = get_test_future_dates()
     payload = {
         "doctor_id": "11111111-1111-1111-1111-111111111111",
         "patient_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-        "start_time": "2026-10-23T04:00:00Z"
+        "start_time": f"{weekday.isoformat()}T04:00:00Z"
     }
     response = client.post("/appointments", json=payload)
     assert response.status_code == 400
@@ -29,10 +32,11 @@ def test_book_appointment_outside_working_hours(client):
 
 
 def test_book_appointment_invalid_boundary(client):
+    weekday, _ = get_test_future_dates()
     payload = {
         "doctor_id": "11111111-1111-1111-1111-111111111111",
         "patient_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-        "start_time": "2026-10-23T07:15:00Z"
+        "start_time": f"{weekday.isoformat()}T07:15:00Z"
     }
     response = client.post("/appointments", json=payload)
     assert response.status_code == 400
@@ -51,10 +55,12 @@ def test_book_appointment_in_the_past(client):
 
 
 def test_book_appointment_duplicate_returns_409(client):
+    weekday, _ = get_test_future_dates()
+    date_str = weekday.isoformat()
     payload = {
         "doctor_id": "11111111-1111-1111-1111-111111111111",
         "patient_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-        "start_time": "2026-10-23T08:00:00Z"
+        "start_time": f"{date_str}T08:00:00Z"
     }
     res1 = client.post("/appointments", json=payload)
     assert res1.status_code == 201
@@ -62,7 +68,7 @@ def test_book_appointment_duplicate_returns_409(client):
     payload2 = {
         "doctor_id": "11111111-1111-1111-1111-111111111111",
         "patient_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-        "start_time": "2026-10-23T08:00:00Z"
+        "start_time": f"{date_str}T08:00:00Z"
     }
     res2 = client.post("/appointments", json=payload2)
     assert res2.status_code == 409
@@ -70,10 +76,11 @@ def test_book_appointment_duplicate_returns_409(client):
 
 
 def test_cancel_appointment_lifecycle(client):
+    weekday, _ = get_test_future_dates()
     book_res = client.post("/appointments", json={
         "doctor_id": "11111111-1111-1111-1111-111111111111",
         "patient_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-        "start_time": "2026-10-23T09:00:00Z"
+        "start_time": f"{weekday.isoformat()}T09:00:00Z"
     })
     assert book_res.status_code == 201
     appt_id = book_res.json()["id"]
@@ -93,28 +100,30 @@ def test_cancel_appointment_lifecycle(client):
 
 
 def test_reschedule_appointment_lifecycle(client):
+    weekday, _ = get_test_future_dates()
+    date_str = weekday.isoformat()
     doc_id = "11111111-1111-1111-1111-111111111111"
     pat_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
     appt1 = client.post("/appointments", json={
         "doctor_id": doc_id,
         "patient_id": pat_id,
-        "start_time": "2026-10-23T10:00:00Z"
+        "start_time": f"{date_str}T10:00:00Z"
     }).json()
 
     appt2 = client.post("/appointments", json={
         "doctor_id": doc_id,
         "patient_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-        "start_time": "2026-10-23T10:30:00Z"
+        "start_time": f"{date_str}T10:30:00Z"
     }).json()
 
     conflict_res = client.patch(f"/appointments/{appt1['id']}/reschedule", json={
-        "new_start_time": "2026-10-23T10:30:00Z"
+        "new_start_time": f"{date_str}T10:30:00Z"
     })
     assert conflict_res.status_code == 409
 
     success_res = client.patch(f"/appointments/{appt1['id']}/reschedule", json={
-        "new_start_time": "2026-10-23T11:00:00Z"
+        "new_start_time": f"{date_str}T11:00:00Z"
     })
     assert success_res.status_code == 200
     assert "11:00:00" in success_res.json()["start_time"]
@@ -122,24 +131,26 @@ def test_reschedule_appointment_lifecycle(client):
     reuse_res = client.post("/appointments", json={
         "doctor_id": doc_id,
         "patient_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-        "start_time": "2026-10-23T10:00:00Z"
+        "start_time": f"{date_str}T10:00:00Z"
     })
     assert reuse_res.status_code == 201
 
 
 def test_patient_upcoming_appointments_bonus(client):
+    weekday, _ = get_test_future_dates()
+    date_str = weekday.isoformat()
     doc_id = "11111111-1111-1111-1111-111111111111"
     pat_id = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
     client.post("/appointments", json={
         "doctor_id": doc_id,
         "patient_id": pat_id,
-        "start_time": "2026-10-23T12:00:00Z"
+        "start_time": f"{date_str}T12:00:00Z"
     })
     client.post("/appointments", json={
         "doctor_id": doc_id,
         "patient_id": pat_id,
-        "start_time": "2026-10-23T06:00:00Z"
+        "start_time": f"{date_str}T06:00:00Z"
     })
 
     res = client.get(f"/patients/{pat_id}/appointments")

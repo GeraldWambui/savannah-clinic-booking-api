@@ -135,6 +135,11 @@ erDiagram
 - **Decision:** Appointments transition from `SCHEDULED` to `CANCELLED` with a required `cancellation_reason` and `cancelled_at` timestamp.
 - **Why:** Healthcare records require an audit trail. Because the partial unique index filters on `WHERE status != 'CANCELLED'`, cancelling an appointment immediately restores the slot for new patient bookings without deleting historical data.
 
+#### E. Framework Selection: Why FastAPI over Django/DRF and Go
+The assessment permitted **FastAPI**, **Django / Django REST Framework (DRF)**, or **Go**. FastAPI was selected based on the following architectural trade-offs:
+- **FastAPI vs. Django / DRF:** Django is a batteries-included monolith designed around template rendering, built-in admin, and synchronous WSGI defaults. For an outpatient scheduling microservice running in a lean container on AWS App Runner (1 vCPU, 2 GB RAM), Django introduces unnecessary framework bloat and memory overhead. FastAPI provides a lightweight ASGI core (Starlette + Uvicorn), Rust-compiled serialization via Pydantic v2, native asynchronous request handling, and automatic OpenAPI contract generation (`/docs`, `/redoc`) out of the box with zero third-party dependencies.
+- **FastAPI vs. Go:** While Go offers high raw execution throughput, clinic scheduling is domain-logic intensive—requiring timezone transformations (`Africa/Nairobi` to UTC), recurring weekly shift boundary calculations, and 30-minute array slicing. Python's modern type system and `zoneinfo` enable clear, readable domain modeling. The primary bottleneck in appointment booking is database transaction isolation and row lock contention, not application CPU cycles. FastAPI delivered fast development velocity and clear domain modeling while letting PostgreSQL handle concurrency safety.
+
 ---
 
 ## Section 2: API Implementation & Local Setup
